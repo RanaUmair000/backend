@@ -3,7 +3,7 @@ const FeePayment = require('../../models/fees/FeePayment');
 const Student = require('../../models/Student');
 const Class = require('../../models/Class');
 
-const Counter = require("./Counter");
+const Counter = require("./counter.js");
 
 async function generateInvoiceNumber() {
   const year = new Date().getFullYear();
