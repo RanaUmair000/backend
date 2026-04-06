@@ -84,10 +84,12 @@ exports.login = async (req, res) => {
         });
     }
 
+    const students = await Student.find();
+
     const user = await Model.findOne({
       email: username.toLowerCase().trim(),
     });
-    console.log(user);
+    console.log(students);
 
     if (!user) {  
       return res.status(401).json({
