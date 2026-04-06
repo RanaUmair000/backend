@@ -60,7 +60,6 @@ exports.login = async (req, res) => {
       });
     }
 
-    console.log(username, password, role);
 
     let Model;
 
@@ -88,6 +87,8 @@ exports.login = async (req, res) => {
     const user = await Model.findOne({
       email: username.toLowerCase().trim(),
     });
+    console.log(user);
+
     if (!user) {  
       return res.status(401).json({
         success: false,
