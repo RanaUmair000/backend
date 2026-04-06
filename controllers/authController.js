@@ -84,7 +84,7 @@ exports.login = async (req, res) => {
         });
     }
 
-    const students = await Admin.find();
+    const students = await Teacher.find();
 
     const user = await Model.findOne({
       email: username.toLowerCase().trim(),
