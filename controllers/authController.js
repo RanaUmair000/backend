@@ -60,6 +60,8 @@ exports.login = async (req, res) => {
       });
     }
 
+    console.log(username, password, role);
+
     let Model;
 
     // 🔥 Select model based on role
