@@ -1,6 +1,6 @@
 const FeePayment = require('../../models/fees/FeePayment');
 const FeeInvoice = require('../../models/fees/FeeInvoice');
-const Counter = require("./Counter");
+const Counter = require("./counter");
 
 async function generateReceiptNumber() {
   const year = new Date().getFullYear();
