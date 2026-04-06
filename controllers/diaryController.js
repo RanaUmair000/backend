@@ -307,6 +307,75 @@ exports.deleteDiary = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────
+// GET BY ID
+// ─────────────────────────────────────────────
+
+exports.getDiaryById = async (req, res) => {
+  try {
+    const diary = await Diary.findById(req.params.id)
+      .populate("classId", "name section")
+      .populate("studentId", "firstName lastName rollNumber profilePic")
+      .populate("teacherId", "firstName lastName");
+
+    if (!diary) {
+      return res.status(404).json({ success: false, message: "Entry not found" });
+    }
+
+    res.json({ success: true, data: diary });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─────────────────────────────────────────────
+// GET FOR STUDENT (student portal)
+// ─────────────────────────────────────────────
+
+exports.getDiariesForStudent = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { type, page = 1, limit = 15, dateFrom, dateTo } = req.query;
+
+    const student = await Student.findById(studentId).select("class");
+    if (!student) {
+      return res.status(404).json({ success: false, message: "Student not found" });
+    }
+
+    const orQuery = [
+      { scope: "class",   classId: student.class },
+      { scope: "student", studentId: new mongoose.Types.ObjectId(studentId) },
+    ];
+
+    const query = { $or: orQuery, status: "Published" };
+    if (type) query.type = type;
+    if (dateFrom || dateTo) {
+      query.date = {};
+      if (dateFrom) query.date.$gte = new Date(dateFrom);
+      if (dateTo)   query.date.$lte = new Date(dateTo);
+    }
+
+    const total = await Diary.countDocuments(query);
+    const entries = await Diary.find(query)
+      .populate("teacherId", "firstName lastName")
+      .populate("classId",   "name section")
+      .sort({ date: -1, createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+
+    res.json({
+      success: true,
+      data: entries,
+      pagination: {
+        total,
+        page:  Number(page),
+        pages: Math.ceil(total / limit),
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+// ─────────────────────────────────────────────
 // STATS (for dashboard widget)
 // ─────────────────────────────────────────────
 

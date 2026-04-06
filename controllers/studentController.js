@@ -115,6 +115,30 @@ exports.createStudent = async (req, res) => {
       student = new Student();
     }
 
+
+    const isUpdate = !!req.params.id;
+    const excludeSelf = isUpdate ? { _id: { $ne: req.params.id } } : {};
+
+    if (req.body.rollNumber) {
+      const rollExists = await Student.findOne({
+        rollNumber: req.body.rollNumber,
+        ...excludeSelf,
+      });
+      if (rollExists) {
+        return res.status(409).json({ message: `Roll number "${req.body.rollNumber}" is already assigned to another student.` });
+      }
+    }
+
+    if (req.body.admissionId) {
+      const admissionExists = await Student.findOne({
+        admissionId: req.body.admissionId,
+        ...excludeSelf,
+      });
+      if (admissionExists) {
+        return res.status(409).json({ message: `Admission ID "${req.body.admissionId}" is already assigned to another student.` });
+      }
+    }
+
     // 🔹 Update normal fields (same as before)
     student.firstName = req.body.firstName;
     student.lastName = req.body.lastName;
@@ -123,6 +147,7 @@ exports.createStudent = async (req, res) => {
     student.dateOfBirth = req.body.dateOfBirth;
     student.gender = req.body.gender;
     student.rollNumber = req.body.rollNumber;
+    student.password = req.body.password;
     student.enrollmentDate = req.body.enrollmentDate;
     student.class = req.body.class;
     student.fee = req.body.fee;
@@ -247,6 +272,7 @@ exports.updateStudent = async (req, res) => {
       dateOfBirth: req.body.dateOfBirth,
       gender: req.body.gender,
       rollNumber: req.body.rollNumber,
+      password: req.body.password,
       enrollmentDate: req.body.enrollmentDate,
       class: req.body.class,
       fee: req.body.fee,
@@ -366,5 +392,214 @@ exports.deleteStudent = async (req, res) => {
   } catch (error) {
     console.error("Delete student error:", error);
     res.status(500).json({ message: "Server error" });
+  }
+};
+
+exports.getMyProfile = async (req, res) => {
+  try {
+    const student = await Student.findById(req.user._id)
+      .populate('class', 'name section fee courseIds');
+
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+
+    res.json({ success: true, data: student });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * GET /api/student/me/fees
+ * All fee invoices for the logged-in student
+ */
+exports.getMyFees = async (req, res) => {
+  try {
+    const { status, invoiceType, page = 1, limit = 50 } = req.query;
+
+    const filter = { student: "6999f660048dead0adcda6c9" };
+    if (status) filter.status = status;
+    if (invoiceType) filter.invoiceType = invoiceType;
+
+    const skip = (page - 1) * limit;
+
+    const [invoices, total] = await Promise.all([
+      FeeInvoice.find(filter)
+        .populate('class', 'name')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit)),
+      FeeInvoice.countDocuments(filter),
+    ]);
+
+    const summary = {
+      totalInvoices: total,
+      paidInvoices: await FeeInvoice.countDocuments({ student: "6999f660048dead0adcda6c9", status: 'paid' }),
+      unpaidInvoices: await FeeInvoice.countDocuments({ student: "6999f660048dead0adcda6c9", status: 'unpaid' }),
+      overdueInvoices: await FeeInvoice.countDocuments({
+        student: "6999f660048dead0adcda6c9",
+        status: { $in: ['unpaid', 'partial'] },
+        dueDate: { $lt: new Date() },
+      }),
+    };
+
+    const agg = await FeeInvoice.aggregate([
+      { $match: { student: require('mongoose').Types.ObjectId("6999f660048dead0adcda6c9") } },
+      {
+        $group: {
+          _id: null,
+          totalAmount: { $sum: '$totalAmount' },
+          paidAmount: { $sum: '$paidAmount' },
+        },
+      },
+    ]);
+
+    if (agg[0]) {
+      summary.totalAmount = agg[0].totalAmount;
+      summary.paidAmount = agg[0].paidAmount;
+      summary.pendingAmount = agg[0].totalAmount - agg[0].paidAmount;
+    }
+
+    res.json({
+      success: true,
+      data: invoices,
+      summary,
+      pagination: { total, page: parseInt(page), limit: parseInt(limit), pages: Math.ceil(total / limit) },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * GET /api/student/me/fees/:invoiceId
+ * Single invoice detail with payment history
+ */
+exports.getMyInvoiceById = async (req, res) => {
+  try {
+    const invoice = await FeeInvoice.findOne({
+      _id: req.params.invoiceId,
+      student: req.user._id,
+    })
+      .populate('class', 'name')
+      .populate('student', 'firstName lastName rollNumber');
+
+    if (!invoice) {
+      return res.status(404).json({ success: false, message: 'Invoice not found' });
+    }
+
+    const payments = await FeePayment.find({ invoice: invoice._id })
+      .populate('receivedBy', 'firstName lastName')
+      .sort({ paymentDate: -1 });
+
+    res.json({ success: true, data: { invoice, payments } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * GET /api/student/me/attendance
+ * Attendance records with optional date range
+ */
+exports.getMyAttendance = async (req, res) => {
+  try {
+    const { startDate, endDate, month, year } = req.query;
+
+    const student = await Student.findById(req.user._id);
+    if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
+
+    const query = { studentId: req.user._id };
+
+    if (month && year) {
+      query.date = {
+        $gte: new Date(year, month - 1, 1),
+        $lte: new Date(year, month, 0),
+      };
+    } else if (startDate || endDate) {
+      query.date = {};
+      if (startDate) query.date.$gte = new Date(startDate);
+      if (endDate) query.date.$lte = new Date(endDate);
+    }
+
+    const records = await Attendance.find(query).sort({ date: -1 });
+
+    const stats = {
+      totalDays: records.length,
+      present: records.filter(r => r.status === 'Present').length,
+      absent: records.filter(r => r.status === 'Absent').length,
+      leave: records.filter(r => r.status === 'Leave').length,
+      late: records.filter(r => r.status === 'Late').length,
+    };
+    stats.attendancePercentage = stats.totalDays > 0
+      ? ((stats.present / stats.totalDays) * 100).toFixed(1)
+      : '0.0';
+
+    // Monthly summary if requested
+    let monthlySummary = null;
+    if (month && year) {
+      monthlySummary = await MonthlyAttendanceSummary.findOne({
+        studentId: req.user._id,
+        month: parseInt(month),
+        year: parseInt(year),
+      });
+    }
+
+    res.json({ success: true, data: { records, stats, monthlySummary } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * GET /api/student/me/dashboard
+ * Aggregated dashboard data in one call
+ */
+exports.getMyDashboard = async (req, res) => {
+  try {
+    const student = await Student.findById(req.user._id)
+      .populate('class', 'name section fee');
+
+    if (!student) return res.status(404).json({ success: false, message: 'Student not found' });
+
+    // Fee summary
+    const feeAgg = await FeeInvoice.aggregate([
+      { $match: { student: student._id } },
+      {
+        $group: {
+          _id: null,
+          totalAmount:  { $sum: '$totalAmount' },
+          paidAmount:   { $sum: '$paidAmount' },
+          totalCount:   { $sum: 1 },
+        },
+      },
+    ]);
+    const feeSummary = feeAgg[0] || { totalAmount: 0, paidAmount: 0, totalCount: 0 };
+    feeSummary.pendingAmount = feeSummary.totalAmount - feeSummary.paidAmount;
+    feeSummary.overdueCount = await FeeInvoice.countDocuments({
+      student: student._id,
+      status: { $in: ['unpaid', 'partial'] },
+      dueDate: { $lt: new Date() },
+    });
+
+    // This month's attendance
+    const now = new Date();
+    const monthlySummary = await MonthlyAttendanceSummary.findOne({
+      studentId: student._id,
+      month: now.getMonth() + 1,
+      year: now.getFullYear(),
+    });
+
+    res.json({
+      success: true,
+      data: {
+        student,
+        feeSummary,
+        attendance: monthlySummary || null,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 };

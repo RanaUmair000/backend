@@ -46,6 +46,7 @@ const studentSchema = new mongoose.Schema({
   },
 
   rollNumber: { type: String, required: true },
+  password: { type: String, required: true },
   class: { type: String, ref: 'classes', required: true },
   fee: { type: String, required: false },
   feePlan: {type: String},

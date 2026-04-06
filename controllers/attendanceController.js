@@ -353,7 +353,6 @@ exports.getStudentAttendance = async (req, res) => {
     }
 
     const attendanceRecords = await Attendance.find(query)
-      .populate('markedBy', 'firstName lastName')
       .sort({ date: -1 });
 
     // Calculate statistics

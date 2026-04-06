@@ -27,6 +27,7 @@ router.get(
   studentController.getStudentByClass
 );
 
+
 router.get(
   '/',
   authMiddleware,
@@ -53,7 +54,7 @@ router.get(
 router.get(
   '/:id',
   authMiddleware,
-  authorizeRoles('admin', 'teacher'),
+  // authorizeRoles('admin', 'teacher'),
   studentController.getStudentById
 );
 
@@ -87,5 +88,36 @@ router.delete(
   studentController.deleteStudent
 );
 
+router.get(
+  '/me',
+  authMiddleware,
+  authorizeRoles('student'),
+  studentController.getMyProfile
+);
 
+router.get(
+  '/me/dashboard',
+  authMiddleware,
+  authorizeRoles('student'),
+  studentController.getMyDashboard
+);
+
+router.get(
+  '/me/fees',
+  studentController.getMyFees
+);
+
+router.get(
+  '/me/fees/:invoiceId',
+  authMiddleware,
+  authorizeRoles('student'),
+  studentController.getMyInvoiceById
+);
+
+router.get(
+  '/me/attendance',
+  authMiddleware,
+  authorizeRoles('student'),
+  studentController.getMyAttendance
+);
 module.exports = router;

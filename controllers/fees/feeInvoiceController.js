@@ -618,6 +618,7 @@ exports.getStudentsWithUnpaidFees = async (req, res) => {
 // Get single invoice by ID
 exports.getInvoiceById = async (req, res) => {
   try {
+    console.log("jos");
     const invoice = await FeeInvoice.findById(req.params.id)
       .populate('student', 'firstName lastName rollNumber profilePic email phone')
       .populate('class', 'name')

@@ -8,8 +8,11 @@ const morgan = require('morgan');
 
 dotenv.config();
 const app = express();
-app.use(helmet());
-
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false, // ✅ disable default blocking
+  })
+);
 const courseRoutes = require("./routes/courseRoutes");
 const studentRoutes = require("./routes/studentRoutes");
 const classRoutes = require("./routes/classRoutes");

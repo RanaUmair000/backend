@@ -41,11 +41,14 @@ const upload = multer({
 
 
 // Stats widget
-router.get("/stats", authMiddleware, diaryController.getDiaryStats);
-
+// ✅ Move this BEFORE router.get("/:id", ...)
+// CORRECT order — specific paths before parameterized ones
+router.get("/stats",               authMiddleware, diaryController.getDiaryStats);
+router.get("/student/:studentId",  authMiddleware, diaryController.getDiariesForStudent);
+router.get("/",                    authMiddleware, diaryController.getDiaries);
+router.get("/:id",                 authMiddleware, diaryController.getDiaryById);
 // CRUD
 router.post("/", authMiddleware, upload.array("attachments", 10), diaryController.createDiary);
-router.get("/", authMiddleware, diaryController.getDiaries);    
 router.get("/:id", authMiddleware, diaryController.getDiaryById);
 router.put("/:id", authMiddleware, upload.array("attachments", 10), diaryController.updateDiary);
 router.delete("/:id", authMiddleware, diaryController.deleteDiary);
