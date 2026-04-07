@@ -122,7 +122,7 @@ exports.login = async (req, res) => {
 
     // 🚀 Role-based redirect
     const redirectMap = {
-      admin: '/admin/dashboard',
+      admin: '/',
       teacher: '/teacher/dashboard',
       accountant: '/accountant/dashboard',
       student: '/student/dashboard',

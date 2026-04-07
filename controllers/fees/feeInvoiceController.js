@@ -486,17 +486,49 @@ exports.getInvoices = async (req, res) => {
 
 exports.getFeeDashboardStats = async (req, res) => {
   try {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
+    const { period } = req.query; // 'today', 'week', 'month', 'year', 'all'
+    
+    let dateFilterInvoice = {};
+    let dateFilterPayment = {};
+    
+    if (period && period !== 'all') {
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      const end = new Date();
+      end.setHours(23, 59, 59, 999);
+      
+      switch (period) {
+        case 'today':
+          // keeping today
+          break;
+        case 'week':
+          start.setDate(start.getDate() - 7);
+          break;
+        case 'month':
+          start.setDate(start.getDate() - 30);
+          break;
+        case 'year':
+          start.setFullYear(start.getFullYear() - 1);
+          break;
+      }
+      
+      dateFilterInvoice = { createdAt: { $gte: start, $lte: end } };
+      dateFilterPayment = { paymentDate: { $gte: start, $lte: end } };
+    }
 
     // Total invoices
-    const totalInvoices = await FeeInvoice.countDocuments();
+    const totalInvoices = await FeeInvoice.countDocuments(dateFilterInvoice);
+
+    // Total Revenue (generated amount within period)
+    const revenueAgg = await FeeInvoice.aggregate([
+      { $match: dateFilterInvoice },
+      { $group: { _id: null, totalRevenue: { $sum: '$totalAmount' } } }
+    ]);
+    const totalRevenue = revenueAgg[0]?.totalRevenue || 0;
 
     // Pending amount (unpaid / partial)
     const pendingAgg = await FeeInvoice.aggregate([
+      { $match: dateFilterInvoice },
       {
         $project: {
           remainingAmount: {
@@ -514,13 +546,9 @@ exports.getFeeDashboardStats = async (req, res) => {
 
     const pendingAmount = pendingAgg[0]?.totalPending || 0;
 
-    // Collected today
-    const collectedTodayAgg = await FeePayment.aggregate([
-      {
-        $match: {
-          paymentDate: { $gte: todayStart, $lte: todayEnd }
-        }
-      },
+    // Collected in period
+    const collectedAgg = await FeePayment.aggregate([
+      { $match: Object.keys(dateFilterPayment).length ? dateFilterPayment : {} },
       {
         $group: {
           _id: null,
@@ -529,12 +557,13 @@ exports.getFeeDashboardStats = async (req, res) => {
       }
     ]);
 
-    const collectedToday = collectedTodayAgg[0]?.total || 0;
+    const collectedInPeriod = collectedAgg[0]?.total || 0;
 
     // Overdue invoices
     const overdueCount = await FeeInvoice.countDocuments({
+      ...dateFilterInvoice,
       dueDate: { $lt: new Date() },
-      status: { $in: ['unpaid', 'partial'] }
+      status: { $in: ['unpaid', 'partially_paid'] }
     });
 
     res.json({
@@ -542,7 +571,8 @@ exports.getFeeDashboardStats = async (req, res) => {
       data: {
         totalInvoices,
         pendingAmount,
-        collectedToday,
+        collectedInPeriod,
+        totalRevenue,
         overdueCount
       }
     });

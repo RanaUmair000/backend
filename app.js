@@ -25,6 +25,7 @@ const authRoutes = require('./routes/authRoutes');
 const stockRoutes = require('./routes/stockRoutes');
 const diaryRoutes = require("./routes/diaryRoutes");
 const teacherAttendanceRoutes = require('./routes/teacherAttendanceRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 
 
 // Connect to database
@@ -56,6 +57,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/stock', stockRoutes);
 app.use("/api/diary", diaryRoutes);
 app.use('/api/teacher-attendance', teacherAttendanceRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Start server
 const PORT = process.env.PORT;

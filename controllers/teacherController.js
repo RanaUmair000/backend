@@ -811,7 +811,10 @@ exports.markNotificationRead = async (req, res) => {
 
 exports.getProfile = async (req, res) => {
   try {
-    res.json({ success: true, data: req.teacher });
+    const teacher = await Teacher.findById(req.user._id)
+      .populate('subjects')
+      .populate('classes');
+    res.json({ success: true, data: teacher });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -819,12 +822,11 @@ exports.getProfile = async (req, res) => {
 
 exports.updateProfile = async (req, res) => {
   try {
-    const Teacher = require('../models/Teacher');
     const allowedFields = ['phone', 'address', 'emergencyContactName', 'emergencyContactPhone', 'qualification', 'specialization'];
     const updates = {};
     allowedFields.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
 
-    const teacher = await Teacher.findByIdAndUpdate(req.teacher._id, updates, { new: true });
+    const teacher = await Teacher.findByIdAndUpdate(req.user._id, updates, { new: true });
     res.json({ success: true, data: teacher });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
