@@ -92,7 +92,7 @@ exports.login = async (req, res) => {
     console.log(students);
 
     if (!user) {  
-      return res.status(401).json({
+      return res.status(404).json({
         success: false,
         message: 'Invalid credentials',
       });
